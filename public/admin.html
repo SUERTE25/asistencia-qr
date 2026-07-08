@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Panel Docente · Asistencia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B2340; --ink-soft:#2E3760; --paper:#F5F1E8; --paper-card:#FFFFFF;
+    --brass:#C9A24B; --brass-dark:#A9803A; --ok:#3E7C59; --err:#B5482F; --line:rgba(27,35,64,0.12);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--paper);
+    background-image: radial-gradient(circle at 1px 1px, rgba(27,35,64,0.06) 1px, transparent 0);
+    background-size:22px 22px; color:var(--ink); font-family:'IBM Plex Sans',sans-serif;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:20px 14px 60px;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+  .brand-mark{ width:34px;height:34px;border-radius:8px;background:var(--ink);display:flex;align-items:center;justify-content:center;color:var(--brass);font-family:'Space Mono',monospace;font-weight:700;font-size:15px; }
+  h1{ font-size:1.05rem; letter-spacing:0.08em; text-transform:uppercase; margin:0 0 20px; font-weight:700; }
+  .panel-section{ width:100%; max-width:520px; }
+  .card{ width:100%; max-width:380px; background:var(--paper-card); border:1px solid var(--line); border-radius:18px; padding:26px 22px; box-shadow:0 10px 30px rgba(27,35,64,0.08); }
+  label.field-label{ display:block; font-size:0.72rem; font-weight:600; letter-spacing:0.05em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:6px; }
+  input[type=password]{ width:100%; padding:13px 14px; border-radius:10px; border:1.5px solid var(--line); font-size:1rem; font-family:'IBM Plex Sans'; background:var(--paper); color:var(--ink); margin-bottom:16px; }
+  button.primary{ width:100%; padding:15px; background:var(--ink); color:var(--brass); border:none; border-radius:10px; font-size:0.85rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; cursor:pointer; }
+  .stamp{ margin-top:16px; border-radius:10px; padding:14px; font-size:0.85rem; display:none; }
+  .stamp.show{ display:block; }
+  .stamp.err{ background:rgba(181,72,47,0.12); color:var(--err); border:1px solid rgba(181,72,47,0.3); }
+
+  .qr-box{ background:var(--paper-card); border:1px solid var(--line); border-radius:18px; padding:20px; display:flex; gap:18px; align-items:center; margin-bottom:18px; flex-wrap:wrap; }
+  .qr-box img{ width:150px;height:150px; border-radius:10px; border:1px solid var(--line); background:#fff; padding:6px; }
+  .qr-info{ flex:1; min-width:180px; }
+  .qr-info h3{ margin:0 0 6px; font-size:0.9rem; letter-spacing:0.03em; }
+  .qr-info p{ margin:0; font-size:0.78rem; color:var(--ink-soft); line-height:1.5; }
+  .note{ font-size:0.72rem; color:var(--brass-dark); background:rgba(201,162,75,0.12); border:1px solid rgba(201,162,75,0.3); padding:8px 10px; border-radius:8px; margin-top:10px; }
+
+  .table-card{ background:var(--paper-card); border:1px solid var(--line); border-radius:18px; padding:16px; }
+  .table-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px; }
+  .table-head h3{ margin:0; font-size:0.9rem; }
+  .count-pill{ background:var(--ink); color:var(--brass); font-family:'Space Mono'; font-size:0.72rem; padding:3px 10px; border-radius:999px; }
+  .btn-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  button.secondary{ border:1.5px solid var(--ink); background:transparent; color:var(--ink); padding:8px 14px; border-radius:8px; font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; cursor:pointer; }
+  button.secondary.danger{ border-color:var(--err); color:var(--err); }
+  table{ width:100%; border-collapse:collapse; font-size:0.82rem; }
+  th, td{ text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  th{ font-size:0.68rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); }
+  tbody tr:last-child td{ border-bottom:none; }
+  .empty{ text-align:center; color:var(--ink-soft); opacity:0.6; padding:24px 0; font-size:0.85rem; }
+  .scroll-wrap{ max-height:360px; overflow-y:auto; }
+  .logout{ margin-top:10px; font-size:0.72rem; color:var(--ink-soft); text-decoration:underline; cursor:pointer; text-align:center; }
+</style>
+</head>
+<body>
+
+  <div class="brand"><div class="brand-mark">A</div></div>
+  <h1>Panel Docente</h1>
+
+  <!-- LOGIN -->
+  <div id="view-login" class="card">
+    <label class="field-label" for="keyInput">Clave de docente</label>
+    <input type="password" id="keyInput" placeholder="Ingresa la clave">
+    <button class="primary" id="loginBtn">Entrar</button>
+    <div class="stamp" id="loginMsg"></div>
+  </div>
+
+  <!-- PANEL -->
+  <div id="view-panel" class="panel-section" style="display:none;">
+    <div class="qr-box">
+      <img id="qrImg" src="" alt="Código QR de asistencia">
+      <div class="qr-info">
+        <h3>Código QR de entrada</h3>
+        <p>Comparte este código con los estudiantes. Al escanearlo se abre la página de registro.</p>
+        <div class="note" id="qrNote"></div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-head">
+        <h3>Registros de hoy</h3>
+        <span class="count-pill" id="countPill">0</span>
+        <div class="btn-row">
+          <button class="secondary" id="refreshBtn">Actualizar</button>
+          <button class="secondary" id="downloadBtn">Descargar Excel</button>
+          <button class="secondary danger" id="clearBtn">Borrar todo</button>
+        </div>
+      </div>
+      <div class="scroll-wrap">
+        <table id="recordsTable">
+          <thead><tr><th>Nombre</th><th>Fecha</th><th>Hora</th></tr></thead>
+          <tbody id="recordsBody"></tbody>
+        </table>
+        <div class="empty" id="emptyMsg">Todavía no hay registros.</div>
+      </div>
+    </div>
+    <div class="logout" id="logoutBtn">Cerrar sesión</div>
+  </div>
+
+<script>
+let ADMIN_KEY = sessionStorage.getItem('adminKey') || '';
+
+function mostrarPanel(){
+  document.getElementById('view-login').style.display = 'none';
+  document.getElementById('view-panel').style.display = 'block';
+  setupQr();
+  loadRecords();
+}
+
+if(ADMIN_KEY){ mostrarPanel(); }
+
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const key = document.getElementById('keyInput').value.trim();
+  const msg = document.getElementById('loginMsg');
+  msg.className = 'stamp';
+  if(!key){ return; }
+
+  const res = await fetch('/api/registros?admin_key=' + encodeURIComponent(key));
+  const data = await res.json();
+  if(res.ok && data.ok){
+    ADMIN_KEY = key;
+    sessionStorage.setItem('adminKey', key);
+    mostrarPanel();
+  } else {
+    msg.textContent = 'Clave incorrecta.';
+    msg.classList.add('show','err');
+  }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  sessionStorage.removeItem('adminKey');
+  location.reload();
+});
+
+// ---------- QR: apunta a la página de registro (raíz del sitio) ----------
+function setupQr(){
+  const url = window.location.origin + '/';
+  const img = document.getElementById('qrImg');
+  const note = document.getElementById('qrNote');
+  if(url.startsWith('http')){
+    img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(url);
+    note.textContent = 'Este QR funciona en cualquier celular solo si esta página está publicada en una URL pública (no en localhost).';
+  }
+}
+
+// ---------- Tabla de registros ----------
+async function loadRecords(){
+  const res = await fetch('/api/registros?admin_key=' + encodeURIComponent(ADMIN_KEY));
+  const data = await res.json();
+  if(!res.ok || !data.ok){ return; }
+  const records = data.registros;
+  const body = document.getElementById('recordsBody');
+  const empty = document.getElementById('emptyMsg');
+  const count = document.getElementById('countPill');
+  body.innerHTML = '';
+  count.textContent = records.length;
+  if(records.length === 0){
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    records.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.date)}</td><td>${escapeHtml(r.time)}</td>`;
+      body.appendChild(tr);
+    });
+  }
+}
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+document.getElementById('refreshBtn').addEventListener('click', loadRecords);
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  window.location.href = '/api/registros/excel?admin_key=' + encodeURIComponent(ADMIN_KEY);
+});
+
+document.getElementById('clearBtn').addEventListener('click', async () => {
+  if(!confirm('¿Borrar todos los registros de asistencia? Esta acción no se puede deshacer.')) return;
+  await fetch('/api/registros?admin_key=' + encodeURIComponent(ADMIN_KEY), { method:'DELETE' });
+  loadRecords();
+});
+
+// Auto-refresh cada 8s mientras se ve el panel
+setInterval(() => {
+  if(document.getElementById('view-panel').style.display !== 'none'){
+    loadRecords();
+  }
+}, 8000);
+</script>
+</body>
+</html>

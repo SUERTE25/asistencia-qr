@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Registrar Asistencia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B2340; --ink-soft:#2E3760; --paper:#F5F1E8; --paper-card:#FFFFFF;
+    --brass:#C9A24B; --brass-dark:#A9803A; --ok:#3E7C59; --err:#B5482F; --line:rgba(27,35,64,0.12);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--paper);
+    background-image: radial-gradient(circle at 1px 1px, rgba(27,35,64,0.06) 1px, transparent 0);
+    background-size:22px 22px; color:var(--ink); font-family:'IBM Plex Sans',sans-serif;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:20px 14px 60px;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+  .brand-mark{ width:34px;height:34px;border-radius:8px;background:var(--ink);display:flex;align-items:center;justify-content:center;color:var(--brass);font-family:'Space Mono',monospace;font-weight:700;font-size:15px; }
+  h1{ font-size:1.05rem; letter-spacing:0.08em; text-transform:uppercase; margin:0; font-weight:700; }
+  .subtitle{ font-size:0.8rem; color:var(--ink-soft); opacity:0.75; margin:2px 0 20px; text-align:center; max-width:320px; }
+  .card{ width:100%; max-width:380px; background:var(--paper-card); border:1px solid var(--line); border-radius:18px; padding:26px 22px 22px; box-shadow:0 10px 30px rgba(27,35,64,0.08); position:relative; overflow:hidden; }
+  .card::before{ content:""; position:absolute; top:0;left:0;right:0; height:6px; background:repeating-linear-gradient(90deg,var(--brass) 0 10px,transparent 10px 20px); opacity:0.7; }
+  .clock-slot{ background:var(--ink); border-radius:12px; padding:18px 14px; text-align:center; margin-bottom:20px; }
+  .clock-slot .label{ color:var(--brass); font-size:0.62rem; letter-spacing:0.16em; text-transform:uppercase; margin-bottom:6px; font-weight:600; }
+  .clock-time{ font-family:'Space Mono',monospace; font-size:2.1rem; color:var(--paper); letter-spacing:0.03em; font-weight:700; font-variant-numeric:tabular-nums; }
+  .clock-date{ font-family:'Space Mono',monospace; font-size:0.72rem; color:rgba(245,241,232,0.6); margin-top:4px; }
+  label.field-label{ display:block; font-size:0.72rem; font-weight:600; letter-spacing:0.05em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:6px; }
+  input[type=text]{ width:100%; padding:13px 14px; border-radius:10px; border:1.5px solid var(--line); font-size:1rem; font-family:'IBM Plex Sans'; background:var(--paper); color:var(--ink); margin-bottom:16px; }
+  input[type=text]:focus{ outline:none; border-color:var(--brass); }
+  button.primary{ width:100%; padding:15px; background:var(--ink); color:var(--brass); border:none; border-radius:10px; font-size:0.85rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; cursor:pointer; transition:transform 0.08s ease; }
+  button.primary:active{ transform:scale(0.98); }
+  button.primary:disabled{ opacity:0.5; cursor:default; }
+  .stamp{ margin-top:16px; border-radius:10px; padding:14px; font-size:0.85rem; display:none; line-height:1.4; }
+  .stamp.show{ display:block; animation:punch 0.35s ease; }
+  .stamp.ok{ background:rgba(62,124,89,0.12); color:var(--ok); border:1px solid rgba(62,124,89,0.3); }
+  .stamp.warn{ background:rgba(197,146,32,0.12); color:var(--brass-dark); border:1px solid rgba(197,146,32,0.3); }
+  .stamp.err{ background:rgba(181,72,47,0.12); color:var(--err); border:1px solid rgba(181,72,47,0.3); }
+  @keyframes punch{ 0%{transform:scale(0.9) rotate(-1deg);opacity:0;} 100%{transform:scale(1) rotate(0);opacity:1;} }
+</style>
+</head>
+<body>
+
+  <div class="brand"><div class="brand-mark">A</div></div>
+  <h1>Control de Asistencia</h1>
+  <p class="subtitle">Escribe tu nombre completo y registra tu hora de entrada.</p>
+
+  <div class="card">
+    <div class="clock-slot">
+      <div class="label">Hora actual</div>
+      <div class="clock-time" id="liveClock">--:--:--</div>
+      <div class="clock-date" id="liveDate">--</div>
+    </div>
+
+    <label class="field-label" for="nameInput">Nombre del estudiante</label>
+    <input type="text" id="nameInput" placeholder="Ej. María Fernanda Pérez" autocomplete="off">
+
+    <button class="primary" id="registerBtn">Registrar entrada</button>
+
+    <div class="stamp" id="stampMsg"></div>
+  </div>
+
+<script>
+// ---------- Reloj en vivo ----------
+function tick(){
+  const now = new Date();
+  document.getElementById('liveClock').textContent = now.toLocaleTimeString('es-EC', {hour12:false});
+  document.getElementById('liveDate').textContent = now.toLocaleDateString('es-EC', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+}
+tick();
+setInterval(tick, 1000);
+
+// ---------- Registrar entrada (llama al servidor, NO usa storage local) ----------
+document.getElementById('registerBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('registerBtn');
+  const input = document.getElementById('nameInput');
+  const stamp = document.getElementById('stampMsg');
+  const name = input.value.trim();
+
+  stamp.className = 'stamp';
+  if(!name){
+    stamp.textContent = 'Escribe tu nombre completo antes de registrar.';
+    stamp.classList.add('show','err');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Registrando...';
+
+  try{
+    const res = await fetch('/api/registrar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    const data = await res.json();
+
+    if(!res.ok || !data.ok){
+      stamp.textContent = data.error || 'No se pudo guardar el registro. Intenta de nuevo.';
+      stamp.classList.add('show','err');
+    } else if(data.duplicado){
+      stamp.textContent = `${data.record.name}, ya registraste tu entrada hoy a las ${data.record.time}.`;
+      stamp.classList.add('show','warn');
+    } else {
+      stamp.textContent = `Entrada registrada para ${data.record.name} a las ${data.record.time}.`;
+      stamp.classList.add('show','ok');
+      input.value = '';
+    }
+  }catch(e){
+    stamp.textContent = 'No se pudo conectar con el servidor. Revisa tu conexión.';
+    stamp.classList.add('show','err');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Registrar entrada';
+});
+
+document.getElementById('nameInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){ document.getElementById('registerBtn').click(); }
+});
+</script>
+</body>
+</html>
