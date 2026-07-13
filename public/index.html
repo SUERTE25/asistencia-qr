@@ -61,6 +61,7 @@
     <button class="primary" id="registerBtn">Registrar entrada</button>
 
     <div class="stamp" id="stampMsg"></div>
+    <div class="stamp show warn" id="noTokenMsg" style="display:none;">Abre esta página escaneando el código QR del docente; el enlace directo sin código no permite registrar asistencia.</div>
   </div>
 
 <script>
@@ -72,6 +73,12 @@ function tick(){
 }
 tick();
 setInterval(tick, 1000);
+
+// ---------- Token del QR: viene en la URL como ?t=xxxxx ----------
+const qrToken = new URLSearchParams(window.location.search).get('t') || '';
+if(!qrToken){
+  document.getElementById('noTokenMsg').style.display = 'block';
+}
 
 // ---------- Registrar entrada (llama al servidor, NO usa storage local) ----------
 document.getElementById('registerBtn').addEventListener('click', async () => {
@@ -94,7 +101,7 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
     const res = await fetch('/api/registrar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name, token: qrToken })
     });
     const data = await res.json();
 
