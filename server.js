@@ -9,15 +9,24 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const XLSX = require('xlsx');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data', 'asistencia.json');
+const QR_FILE = path.join(__dirname, 'data', 'qrtoken.json');
 
 // ⚠️ Cambia esta clave por la que tú quieras usar como docente.
 // Es la "contraseña" para entrar al panel y ver los registros.
 const ADMIN_KEY = process.env.ADMIN_KEY || 'docente2026';
+
+// Zona horaria fija para que el servidor registre la hora real de Ecuador
+// sin importar en qué país esté físicamente el servidor (Render usa UTC).
+const TIMEZONE = 'America/Guayaquil';
+
+// El QR se renueva automáticamente después de este tiempo (7 días).
+const QR_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
 app.use(cors());
 app.use(express.json());
@@ -47,7 +56,39 @@ function claveValida(req) {
   return key === ADMIN_KEY;
 }
 function hoyISO() {
-  return new Date().toLocaleDateString('es-EC');
+  return new Date().toLocaleDateString('es-EC', { timeZone: TIMEZONE });
+}
+function horaActual(now) {
+  return now.toLocaleTimeString('es-EC', { hour12: false, timeZone: TIMEZONE });
+}
+
+// ---------- Token del QR (rotación semanal) ----------
+function generarToken() {
+  return crypto.randomBytes(6).toString('hex');
+}
+function leerTokenQr() {
+  if (!fs.existsSync(QR_FILE)) {
+    const nuevo = { token: generarToken(), createdAt: Date.now() };
+    fs.writeFileSync(QR_FILE, JSON.stringify(nuevo, null, 2), 'utf8');
+    return nuevo;
+  }
+  let data;
+  try {
+    data = JSON.parse(fs.readFileSync(QR_FILE, 'utf8'));
+  } catch (e) {
+    data = { token: generarToken(), createdAt: Date.now() };
+  }
+  // Si ya pasó una semana, se genera uno nuevo automáticamente
+  if (Date.now() - data.createdAt > QR_LIFETIME_MS) {
+    data = { token: generarToken(), createdAt: Date.now() };
+    fs.writeFileSync(QR_FILE, JSON.stringify(data, null, 2), 'utf8');
+  }
+  return data;
+}
+function regenerarTokenQr() {
+  const nuevo = { token: generarToken(), createdAt: Date.now() };
+  fs.writeFileSync(QR_FILE, JSON.stringify(nuevo, null, 2), 'utf8');
+  return nuevo;
 }
 
 // ---------- Rutas de páginas ----------
@@ -65,8 +106,20 @@ app.get('/admin', (req, res) => {
 // ---------- API: Registrar asistencia (público, sin clave) ----------
 app.post('/api/registrar', (req, res) => {
   const name = (req.body.name || '').trim();
+  const tokenRecibido = (req.body.token || '').trim();
+
   if (!name) {
     return res.status(400).json({ ok: false, error: 'Escribe tu nombre completo.' });
+  }
+
+  // Verifica que el QR escaneado sea el vigente (evita fotos de QR viejos)
+  const tokenVigente = leerTokenQr();
+  if (!tokenRecibido || tokenRecibido !== tokenVigente.token) {
+    return res.status(400).json({
+      ok: false,
+      expirado: true,
+      error: 'Este código QR ya no es válido. Pide a tu docente el código actualizado.'
+    });
   }
 
   const registros = leerRegistros();
@@ -85,13 +138,38 @@ app.post('/api/registrar', (req, res) => {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
     name,
     date: fecha,
-    time: now.toLocaleTimeString('es-EC', { hour12: false }),
+    time: horaActual(now),
     ts: now.getTime()
   };
 
   registros.push(record);
   guardarRegistros(registros);
   res.json({ ok: true, duplicado: false, record });
+});
+
+// ---------- API: Info del QR vigente (público) ----------
+app.get('/api/qr-info', (req, res) => {
+  const info = leerTokenQr();
+  res.json({
+    ok: true,
+    token: info.token,
+    createdAt: info.createdAt,
+    expiresAt: info.createdAt + QR_LIFETIME_MS
+  });
+});
+
+// ---------- API: Regenerar QR manualmente (solo docente) ----------
+app.post('/api/qr-info/regenerar', (req, res) => {
+  if (!claveValida(req)) {
+    return res.status(401).json({ ok: false, error: 'Clave de docente incorrecta.' });
+  }
+  const info = regenerarTokenQr();
+  res.json({
+    ok: true,
+    token: info.token,
+    createdAt: info.createdAt,
+    expiresAt: info.createdAt + QR_LIFETIME_MS
+  });
 });
 
 // ---------- API: Ver registros (solo docente, requiere clave) ----------
