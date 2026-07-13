@@ -73,6 +73,8 @@
       <div class="qr-info">
         <h3>Código QR de entrada</h3>
         <p>Comparte este código con los estudiantes. Al escanearlo se abre la página de registro.</p>
+        <p id="qrVigencia" style="margin-top:8px; font-size:0.72rem; color:var(--ink-soft);"></p>
+        <button class="secondary" id="regenQrBtn" style="margin-top:10px;">Generar nuevo QR ahora</button>
         <div class="note" id="qrNote"></div>
       </div>
     </div>
@@ -133,16 +135,42 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
   location.reload();
 });
 
-// ---------- QR: apunta a la página de registro (raíz del sitio) ----------
-function setupQr(){
-  const url = window.location.origin + '/';
+// ---------- QR: apunta a la página de registro con el token vigente ----------
+async function setupQr(){
   const img = document.getElementById('qrImg');
   const note = document.getElementById('qrNote');
-  if(url.startsWith('http')){
+  const vigencia = document.getElementById('qrVigencia');
+
+  try{
+    const res = await fetch('/api/qr-info');
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error('sin datos');
+
+    const url = window.location.origin + '/?t=' + data.token;
     img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(url);
-    note.textContent = 'Este QR funciona en cualquier celular solo si esta página está publicada en una URL pública (no en localhost).';
+
+    const expira = new Date(data.expiresAt);
+    vigencia.textContent = 'Vence automáticamente el ' + expira.toLocaleDateString('es-EC', { timeZone:'America/Guayaquil' }) + ' a las ' + expira.toLocaleTimeString('es-EC', { hour12:false, timeZone:'America/Guayaquil' }) + '.';
+
+    note.textContent = 'Este QR funciona en cualquier celular solo si esta página está publicada en una URL pública (no en localhost). Se renueva solo cada 7 días, o puedes forzar un cambio con el botón de arriba.';
+  }catch(e){
+    note.textContent = 'No se pudo generar el QR. Verifica tu conexión y vuelve a intentar.';
   }
 }
+
+document.getElementById('regenQrBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('regenQrBtn');
+  btn.disabled = true;
+  btn.textContent = 'Generando...';
+  try{
+    await fetch('/api/qr-info/regenerar?admin_key=' + encodeURIComponent(ADMIN_KEY), { method:'POST' });
+    await setupQr();
+  }catch(e){
+    alert('No se pudo generar el nuevo QR. Intenta de nuevo.');
+  }
+  btn.disabled = false;
+  btn.textContent = 'Generar nuevo QR ahora';
+});
 
 // ---------- Tabla de registros ----------
 async function loadRecords(){
