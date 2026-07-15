@@ -3,39 +3,40 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
-<title>Panel Docente · Asistencia</title>
+<title>Panel Docente · Banda Musical</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#1B2340; --ink-soft:#2E3760; --paper:#F5F1E8; --paper-card:#FFFFFF;
-    --brass:#C9A24B; --brass-dark:#A9803A; --ok:#3E7C59; --err:#B5482F; --line:rgba(27,35,64,0.12);
+    --ink:#1B4332; --ink-soft:#2D6A4F; --paper:#F1ECDD; --paper-card:#FFFFFF;
+    --brass:#74C69D; --brass-dark:#40774F; --ok:#2D6A4F; --err:#9C5A3C; --line:rgba(27,67,50,0.14);
   }
   *{box-sizing:border-box;}
   body{
     margin:0; background:var(--paper);
-    background-image: radial-gradient(circle at 1px 1px, rgba(27,35,64,0.06) 1px, transparent 0);
+    background-image: radial-gradient(circle at 1px 1px, rgba(27,67,50,0.07) 1px, transparent 0);
     background-size:22px 22px; color:var(--ink); font-family:'IBM Plex Sans',sans-serif;
     min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:20px 14px 60px;
   }
   .brand{ display:flex; align-items:center; gap:10px; margin-bottom:4px; }
-  .brand-mark{ width:34px;height:34px;border-radius:8px;background:var(--ink);display:flex;align-items:center;justify-content:center;color:var(--brass);font-family:'Space Mono',monospace;font-weight:700;font-size:15px; }
-  h1{ font-size:1.05rem; letter-spacing:0.08em; text-transform:uppercase; margin:0 0 20px; font-weight:700; }
+  .brand-mark{ width:34px;height:34px;border-radius:8px;background:var(--ink);display:flex;align-items:center;justify-content:center;color:var(--brass);font-family:'Space Mono',monospace;font-weight:700;font-size:17px; }
+  h1{ font-size:1.05rem; letter-spacing:0.08em; text-transform:uppercase; margin:0 0 4px; font-weight:700; }
+  .school-name{ font-size:0.65rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--brass-dark); font-weight:600; margin:0 0 20px; text-align:center; }
   .panel-section{ width:100%; max-width:520px; }
-  .card{ width:100%; max-width:380px; background:var(--paper-card); border:1px solid var(--line); border-radius:18px; padding:26px 22px; box-shadow:0 10px 30px rgba(27,35,64,0.08); }
+  .card{ width:100%; max-width:380px; background:var(--paper-card); border:1px solid var(--line); border-radius:18px; padding:26px 22px; box-shadow:0 10px 30px rgba(27,67,50,0.10); }
   label.field-label{ display:block; font-size:0.72rem; font-weight:600; letter-spacing:0.05em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:6px; }
   input[type=password]{ width:100%; padding:13px 14px; border-radius:10px; border:1.5px solid var(--line); font-size:1rem; font-family:'IBM Plex Sans'; background:var(--paper); color:var(--ink); margin-bottom:16px; }
   button.primary{ width:100%; padding:15px; background:var(--ink); color:var(--brass); border:none; border-radius:10px; font-size:0.85rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; cursor:pointer; }
   .stamp{ margin-top:16px; border-radius:10px; padding:14px; font-size:0.85rem; display:none; }
   .stamp.show{ display:block; }
-  .stamp.err{ background:rgba(181,72,47,0.12); color:var(--err); border:1px solid rgba(181,72,47,0.3); }
+  .stamp.err{ background:rgba(156,90,60,0.12); color:var(--err); border:1px solid rgba(156,90,60,0.3); }
 
   .qr-box{ background:var(--paper-card); border:1px solid var(--line); border-radius:18px; padding:20px; display:flex; gap:18px; align-items:center; margin-bottom:18px; flex-wrap:wrap; }
   .qr-box img{ width:150px;height:150px; border-radius:10px; border:1px solid var(--line); background:#fff; padding:6px; }
   .qr-info{ flex:1; min-width:180px; }
   .qr-info h3{ margin:0 0 6px; font-size:0.9rem; letter-spacing:0.03em; }
   .qr-info p{ margin:0; font-size:0.78rem; color:var(--ink-soft); line-height:1.5; }
-  .note{ font-size:0.72rem; color:var(--brass-dark); background:rgba(201,162,75,0.12); border:1px solid rgba(201,162,75,0.3); padding:8px 10px; border-radius:8px; margin-top:10px; }
+  .note{ font-size:0.72rem; color:var(--brass-dark); background:rgba(116,198,157,0.18); border:1px solid rgba(64,119,79,0.3); padding:8px 10px; border-radius:8px; margin-top:10px; }
 
   .table-card{ background:var(--paper-card); border:1px solid var(--line); border-radius:18px; padding:16px; }
   .table-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px; }
@@ -55,8 +56,9 @@
 </head>
 <body>
 
-  <div class="brand"><div class="brand-mark">A</div></div>
-  <h1>Panel Docente</h1>
+  <div class="brand"><div class="brand-mark">&#9835;</div></div>
+  <h1>Panel Docente · Banda Musical</h1>
+  <p class="school-name">Unidad Educativa Particular "Sagrados Corazones"</p>
 
   <!-- LOGIN -->
   <div id="view-login" class="card">
@@ -99,6 +101,8 @@
     </div>
     <div class="logout" id="logoutBtn">Cerrar sesión</div>
   </div>
+
+  <div class="watermark" style="margin-top:24px; font-size:0.62rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--brass-dark); opacity:0.55; text-align:center;">Mike Bowen y Luis Pazos</div>
 
 <script>
 let ADMIN_KEY = sessionStorage.getItem('adminKey') || '';
