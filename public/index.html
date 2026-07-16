@@ -61,6 +61,28 @@
     <label class="field-label" for="nameInput">Nombre del estudiante</label>
     <input type="text" id="nameInput" placeholder="Ej. María Fernanda Pérez" autocomplete="off">
 
+    <label class="field-label" for="gradoInput">Grado en el que estás matriculado</label>
+    <select id="gradoInput">
+      <option value="">Selecciona tu grado</option>
+      <optgroup label="Educación General Básica">
+        <option>1ro EGB</option>
+        <option>2do EGB</option>
+        <option>3ro EGB</option>
+        <option>4to EGB</option>
+        <option>5to EGB</option>
+        <option>6to EGB</option>
+        <option>7mo EGB</option>
+        <option>8vo EGB</option>
+        <option>9no EGB</option>
+        <option>10mo EGB</option>
+      </optgroup>
+      <optgroup label="Bachillerato">
+        <option>1ro Bachillerato</option>
+        <option>2do Bachillerato</option>
+        <option>3ro Bachillerato</option>
+      </optgroup>
+    </select>
+
     <button class="primary" id="registerBtn">Registrar entrada</button>
 
     <div class="stamp" id="stampMsg"></div>
@@ -90,12 +112,19 @@ if(!qrToken){
 document.getElementById('registerBtn').addEventListener('click', async () => {
   const btn = document.getElementById('registerBtn');
   const input = document.getElementById('nameInput');
+  const gradoSelect = document.getElementById('gradoInput');
   const stamp = document.getElementById('stampMsg');
   const name = input.value.trim();
+  const grado = gradoSelect.value;
 
   stamp.className = 'stamp';
   if(!name){
     stamp.textContent = 'Escribe tu nombre completo antes de registrar.';
+    stamp.classList.add('show','err');
+    return;
+  }
+  if(!grado){
+    stamp.textContent = 'Selecciona tu grado antes de registrar.';
     stamp.classList.add('show','err');
     return;
   }
@@ -107,7 +136,7 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
     const res = await fetch('/api/registrar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, token: qrToken })
+      body: JSON.stringify({ name, grado, token: qrToken })
     });
     const data = await res.json();
 
@@ -118,7 +147,7 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
       stamp.textContent = `${data.record.name}, ya registraste tu entrada hoy a las ${data.record.time}.`;
       stamp.classList.add('show','warn');
     } else {
-      stamp.textContent = `Entrada registrada para ${data.record.name} a las ${data.record.time}.`;
+      stamp.textContent = `Entrada registrada para ${data.record.name} (${data.record.grado}) a las ${data.record.time}.`;
       stamp.classList.add('show','ok');
       input.value = '';
     }
