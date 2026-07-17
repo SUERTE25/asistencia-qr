@@ -91,7 +91,7 @@
         <span class="count-pill" id="countPill">0</span>
         <div class="btn-row">
           <button class="secondary" id="refreshBtn">Actualizar</button>
-          <button class="secondary" id="downloadBtn">Descargar Excel</button>
+          <button class="secondary" id="downloadBtn">Descargar registros (Excel)</button>
           <button class="secondary danger" id="clearBtn">Borrar todo</button>
         </div>
       </div>
@@ -105,7 +105,7 @@
     </div>
     <div class="table-card" style="margin-top:16px;">
       <div class="table-head">
-        <h3>Resumen mensual de asistencia</h3>
+        <h3>Resumen mensual de asistencia (sábados)</h3>
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
         <input type="month" id="mesInput" style="flex:1; min-width:140px; padding:10px 12px; border-radius:8px; border:1.5px solid var(--line); font-family:'IBM Plex Sans'; background:var(--paper); color:var(--ink);">
@@ -124,11 +124,13 @@
       <p style="font-size:0.75rem; color:var(--ink-soft); margin:0 0 12px;" id="resumenNota"></p>
       <div class="scroll-wrap">
         <table id="resumenTable">
-          <thead><tr><th>Nombre</th><th>Grado</th><th>Ensayos asistidos</th><th>%</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Grado</th><th>Sábados asistidos</th><th>%</th></tr></thead>
           <tbody id="resumenBody"></tbody>
         </table>
         <div class="empty" id="resumenEmpty" style="display:none;">No hay registros para ese mes/grado.</div>
       </div>
+      <button class="secondary" id="downloadAnualBtn" style="margin-top:14px; width:100%;">Descargar resumen anual organizado (Excel)</button>
+      <p style="font-size:0.68rem; color:var(--ink-soft); opacity:0.75; margin:8px 0 0;">Incluye una hoja "Resumen Anual" con el % de todo el año por estudiante, y una hoja separada por cada mes (Enero a Diciembre) con el detalle de cada sábado.</p>
     </div>
     <div class="logout" id="logoutBtn">Cerrar sesión</div>
   </div>
@@ -276,7 +278,7 @@ async function loadResumen(){
   const data = await res.json();
   if(!res.ok || !data.ok) return;
 
-  nota.textContent = `Se registraron ensayos en ${data.totalSesiones} día(s) durante este mes. El % es: días que asistió cada estudiante / días que hubo ensayo.`;
+  nota.textContent = `Este mes tiene ${data.totalSesiones} sábado(s) de ensayo ya transcurridos. El % es: sábados que asistió cada estudiante / sábados ya transcurridos. Verde ≥70%, amarillo 60-69%, rojo <60%.`;
 
   body.innerHTML = '';
   if(data.estudiantes.length === 0){
@@ -284,7 +286,7 @@ async function loadResumen(){
   } else {
     empty.style.display = 'none';
     data.estudiantes.forEach(e => {
-      const clase = e.porcentaje >= 80 ? 'pct-alta' : (e.porcentaje >= 50 ? 'pct-media' : 'pct-baja');
+      const clase = e.porcentaje >= 70 ? 'pct-alta' : (e.porcentaje < 60 ? 'pct-baja' : 'pct-media');
       const tr = document.createElement('tr');
       tr.innerHTML = `<td>${escapeHtml(e.name)}</td><td>${escapeHtml(e.grado || '—')}</td><td>${e.asistencias} / ${e.totalSesiones}</td><td><span class="pct-badge ${clase}">${e.porcentaje}%</span></td>`;
       body.appendChild(tr);
@@ -294,6 +296,15 @@ async function loadResumen(){
 
 document.getElementById('mesInput').addEventListener('change', loadResumen);
 document.getElementById('gradoFiltro').addEventListener('change', loadResumen);
+
+document.getElementById('downloadAnualBtn').addEventListener('click', () => {
+  const mes = document.getElementById('mesInput').value; // 'YYYY-MM'
+  const grado = document.getElementById('gradoFiltro').value;
+  const year = mes ? mes.split('-')[0] : new Date().getFullYear();
+  let url = '/api/resumen-anual/excel?admin_key=' + encodeURIComponent(ADMIN_KEY) + '&year=' + encodeURIComponent(year);
+  if(grado) url += '&grado=' + encodeURIComponent(grado);
+  window.location.href = url;
+});
 
 // Auto-refresh cada 8s mientras se ve el panel
 setInterval(() => {
