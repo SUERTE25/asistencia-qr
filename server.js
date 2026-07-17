@@ -75,6 +75,29 @@ function horaActual(now) {
   return now.toLocaleTimeString('es-EC', { hour12: false, timeZone: TIMEZONE });
 }
 
+// ---------- Calendario de ensayos: todos los sábados del mes/año ----------
+const NOMBRES_MES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function sabadosDelMes(mesStr) {
+  // mesStr: 'YYYY-MM'. Usa UTC para no depender del huso horario del servidor.
+  const [y, m] = mesStr.split('-').map(Number);
+  const diasEnElMes = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const sabados = [];
+  for (let d = 1; d <= diasEnElMes; d++) {
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    if (dt.getUTCDay() === 6) { // 6 = sábado
+      sabados.push(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+    }
+  }
+  return sabados;
+}
+
+function estadoPorPorcentaje(pct) {
+  if (pct >= 70) return 'Buena (≥70%)';
+  if (pct < 60) return 'Baja (<60%)';
+  return 'Regular (60-69%)';
+}
+
 // ---------- Token del QR (rotación semanal) ----------
 function generarToken() {
   return crypto.randomBytes(6).toString('hex');
@@ -198,9 +221,11 @@ app.post('/api/qr-info/regenerar', (req, res) => {
 });
 
 // ---------- API: Resumen mensual de asistencia (solo docente) ----------
-// El % se calcula así: de todos los días del mes en los que hubo AL MENOS
-// un registro (eso se cuenta como "hubo ensayo"), cuántos de esos días
-// asistió cada estudiante.
+// Los ensayos son TODOS LOS SÁBADOS del mes (calendario real, no depende de
+// si alguien registró ese día). El % se calcula así:
+//   (sábados a los que asistió el estudiante) / (sábados ya transcurridos del mes) × 100
+// Los sábados futuros (que aún no llegan) no se cuentan, para no penalizar
+// injustamente antes de que ocurra el ensayo.
 app.get('/api/resumen-mensual', (req, res) => {
   if (!claveValida(req)) {
     return res.status(401).json({ ok: false, error: 'Clave de docente incorrecta.' });
@@ -208,15 +233,15 @@ app.get('/api/resumen-mensual', (req, res) => {
 
   const mes = (req.query.mes || fechaISO(new Date()).slice(0, 7)); // 'YYYY-MM'
   const gradoFiltro = (req.query.grado || '').trim();
+  const hoy = fechaISO(new Date());
 
-  let registros = leerRegistros().filter(r => r.dateISO && r.dateISO.startsWith(mes));
+  const sabadosMes = sabadosDelMes(mes).filter(f => f <= hoy);
+  const totalSesiones = sabadosMes.length;
+
+  let registros = leerRegistros().filter(r => r.dateISO && sabadosMes.includes(r.dateISO));
   if (gradoFiltro) {
     registros = registros.filter(r => r.grado === gradoFiltro);
   }
-
-  // Días del mes en los que hubo al menos un ensayo (al menos un registro)
-  const sesiones = [...new Set(registros.map(r => r.dateISO))].sort();
-  const totalSesiones = sesiones.length;
 
   // Agrupar por estudiante (nombre normalizado)
   const porEstudiante = {};
@@ -229,15 +254,105 @@ app.get('/api/resumen-mensual', (req, res) => {
     porEstudiante[key].grado = r.grado; // se queda con el grado más reciente
   });
 
-  const estudiantes = Object.values(porEstudiante).map(e => ({
-    name: e.name,
-    grado: e.grado,
-    asistencias: e.dias.size,
-    totalSesiones,
-    porcentaje: totalSesiones > 0 ? Math.round((e.dias.size / totalSesiones) * 100) : 0
-  })).sort((a, b) => a.porcentaje - b.porcentaje || a.name.localeCompare(b.name));
+  const estudiantes = Object.values(porEstudiante).map(e => {
+    const porcentaje = totalSesiones > 0 ? Math.round((e.dias.size / totalSesiones) * 100) : 0;
+    return {
+      name: e.name,
+      grado: e.grado,
+      asistencias: e.dias.size,
+      totalSesiones,
+      porcentaje,
+      estado: estadoPorPorcentaje(porcentaje)
+    };
+  }).sort((a, b) => a.porcentaje - b.porcentaje || a.name.localeCompare(b.name));
 
-  res.json({ ok: true, mes, totalSesiones, sesiones, estudiantes });
+  res.json({ ok: true, mes, totalSesiones, sabados: sabadosMes, estudiantes });
+});
+
+// ---------- API: Resumen ANUAL en Excel, organizado por mes (sábados) ----------
+app.get('/api/resumen-anual/excel', (req, res) => {
+  if (!claveValida(req)) {
+    return res.status(401).send('Clave de docente incorrecta.');
+  }
+
+  const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+  const gradoFiltro = (req.query.grado || '').trim();
+  const registros = leerRegistros();
+  const hoy = fechaISO(new Date());
+
+  const wb = XLSX.utils.book_new();
+  const acumuladoAnual = {}; // por estudiante, sumado a través de los 12 meses
+
+  for (let mesNum = 1; mesNum <= 12; mesNum++) {
+    const mesStr = `${year}-${String(mesNum).padStart(2, '0')}`;
+    const sabadosMes = sabadosDelMes(mesStr).filter(f => f <= hoy);
+    const totalSesiones = sabadosMes.length;
+
+    let regsMes = registros.filter(r => r.dateISO && sabadosMes.includes(r.dateISO));
+    if (gradoFiltro) regsMes = regsMes.filter(r => r.grado === gradoFiltro);
+
+    const porEstudiante = {};
+    regsMes.forEach(r => {
+      const key = r.name.toLowerCase();
+      if (!porEstudiante[key]) porEstudiante[key] = { name: r.name, grado: r.grado, dias: new Set() };
+      porEstudiante[key].dias.add(r.dateISO);
+      porEstudiante[key].grado = r.grado;
+    });
+
+    const filas = Object.values(porEstudiante)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(e => {
+        const pct = totalSesiones > 0 ? Math.round((e.dias.size / totalSesiones) * 100) : 0;
+        // Acumula para la hoja de resumen anual
+        if (totalSesiones > 0) {
+          const k = e.name.toLowerCase();
+          if (!acumuladoAnual[k]) acumuladoAnual[k] = { name: e.name, grado: e.grado, asistidas: 0, programados: 0 };
+          acumuladoAnual[k].asistidas += e.dias.size;
+          acumuladoAnual[k].programados += totalSesiones;
+          acumuladoAnual[k].grado = e.grado;
+        }
+        return {
+          Nombre: e.name,
+          Grado: e.grado,
+          'Sábados asistidos': e.dias.size,
+          'Sábados del mes': totalSesiones,
+          'Porcentaje': totalSesiones > 0 ? pct + '%' : 'N/A',
+          Estado: totalSesiones > 0 ? estadoPorPorcentaje(pct) : 'Sin ensayos aún'
+        };
+      });
+
+    const ws = XLSX.utils.json_to_sheet(
+      filas.length ? filas : [{ Nombre: '(sin registros este mes)', Grado: '', 'Sábados asistidos': '', 'Sábados del mes': totalSesiones, Porcentaje: '', Estado: '' }]
+    );
+    ws['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, ws, NOMBRES_MES[mesNum - 1]);
+  }
+
+  // Hoja de resumen anual, un renglón por estudiante, ordenada de mayor a menor %
+  const filasResumen = Object.values(acumuladoAnual)
+    .map(e => ({ ...e, pct: e.programados > 0 ? Math.round((e.asistidas / e.programados) * 100) : 0 }))
+    .sort((a, b) => b.pct - a.pct || a.name.localeCompare(b.name))
+    .map(e => ({
+      Nombre: e.name,
+      Grado: e.grado,
+      'Sábados asistidos (año)': e.asistidas,
+      'Sábados programados (año)': e.programados,
+      'Porcentaje anual': e.pct + '%',
+      Estado: estadoPorPorcentaje(e.pct)
+    }));
+
+  const wsResumen = XLSX.utils.json_to_sheet(
+    filasResumen.length ? filasResumen : [{ Nombre: '(sin datos aún)', Grado: '', 'Sábados asistidos (año)': '', 'Sábados programados (año)': '', 'Porcentaje anual': '', Estado: '' }]
+  );
+  wsResumen['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 20 }, { wch: 22 }, { wch: 16 }, { wch: 18 }];
+  XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen Anual');
+  // Mueve la hoja de resumen anual al principio del libro
+  wb.SheetNames.unshift(wb.SheetNames.pop());
+
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  res.setHeader('Content-Disposition', `attachment; filename="resumen_asistencia_${year}.xlsx"`);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(buffer);
 });
 
 // ---------- API: Ver registros (solo docente, requiere clave) ----------
